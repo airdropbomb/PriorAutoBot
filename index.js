@@ -38,7 +38,7 @@ const routerABI = [
     "stateMutability": "nonpayable",
     "type": "function"
   },
-  Dedication: {
+  {
     "inputs": [{ "internalType": "uint256", "name": "varg0", "type": "uint256" }],
     "name": "swapPriorToUSDT",
     "outputs": [],
