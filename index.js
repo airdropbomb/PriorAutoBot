@@ -70,14 +70,6 @@ function addLog(message, type) {
   updateLogs();
 }
 
-function getRandomDelay() {
-  return Math.random() * (60000 - 30000) + 30000;
-}
-
-function getRandomNumber(min, max) {
-  return Math.random() * (max - min) + min;
-}
-
 function getShortHash(hash) {
   return hash.slice(0, 6) + "..." + hash.slice(-4);
 }
@@ -307,7 +299,7 @@ async function runAutoSwap() {
 
   const promptForSwapAmount = async () => {
     promptBox.setFront();
-    promptBox.readInput("Enter Swap Amount (e.g., 0.1 for 0.1 PRIOR per swap, number of swaps):", "", async (err, value) => {
+    promptBox.readInput("Enter Number of Swaps (e.g., 5 for 5 swaps):", "", async (err, value) => {
       promptBox.hide();
       safeRender();
       if (err || !value) {
@@ -317,12 +309,54 @@ async function runAutoSwap() {
 
       const loopCount = parseFloat(value);
       if (isNaN(loopCount) || loopCount <= 0) {
-        addLog("Prior Swap: Input must be a positive number greater than 0.", "prior");
+        addLog("Prior Swap: Number of swaps must be a positive number greater than 0.", "prior");
         promptForSwapAmount(); // Prompt again if invalid
         return;
       }
 
-      addLog(`Prior Swap: You entered ${loopCount} auto swaps for all wallets.`, "prior");
+      promptForSwapAmountPerSwap(loopCount);
+    });
+  };
+
+  const promptForSwapAmountPerSwap = async (loopCount) => {
+    promptBox.setFront();
+    promptBox.readInput("Enter Swap Amount per Swap (e.g., 0.01 for 0.01 PRIOR):", "", async (err, value) => {
+      promptBox.hide();
+      safeRender();
+      if (err || !value) {
+        addLog("Prior Swap: Invalid input or cancelled.", "prior");
+        return;
+      }
+
+      const swapAmount = parseFloat(value);
+      if (isNaN(swapAmount) || swapAmount < MINIMUM_SWAP_AMOUNT) {
+        addLog(`Prior Swap: Swap amount must be a number greater than or equal to ${MINIMUM_SWAP_AMOUNT}.`, "prior");
+        promptForSwapAmountPerSwap(loopCount); // Prompt again if invalid
+        return;
+      }
+
+      promptForSwapInterval(loopCount, swapAmount);
+    });
+  };
+
+  const promptForSwapInterval = async (loopCount, swapAmount) => {
+    promptBox.setFront();
+    promptBox.readInput("Enter Swap Interval in Seconds (e.g., 30 for 30 seconds):", "", async (err, value) => {
+      promptBox.hide();
+      safeRender();
+      if (err || !value) {
+        addLog("Prior Swap: Invalid input or cancelled.", "prior");
+        return;
+      }
+
+      const swapInterval = parseFloat(value) * 1000; // Convert seconds to milliseconds
+      if (isNaN(swapInterval) || swapInterval <= 0) {
+        addLog("Prior Swap: Swap interval must be a positive number greater than 0.", "prior");
+        promptForSwapInterval(loopCount, swapAmount); // Prompt again if invalid
+        return;
+      }
+
+      addLog(`Prior Swap: You entered ${loopCount} auto swaps with ${swapAmount} PRIOR per swap and ${swapInterval / 1000} seconds interval.`, "prior");
       if (priorSwapRunning) {
         addLog("Prior Swap: Transactions are currently running. Please stop transactions first.", "prior");
         return;
@@ -348,26 +382,25 @@ async function runAutoSwap() {
           if (priorSwapCancelled) break;
           const shortAddress = getShortAddress(wallet.address);
           const priorToken = new ethers.Contract(PRIOR_ADDRESS, ERC20_ABI, wallet);
+          const routerContract = new ethers.Contract(routerAddress, routerABI, wallet);
 
           // Check PRIOR balance
           const priorBalance = await priorToken.balanceOf(wallet.address);
           const priorBalanceFormatted = ethers.formatEther(priorBalance);
 
-          if (parseFloat(priorBalanceFormatted) < MINIMUM_SWAP_AMOUNT) {
-            addLog(`Wallet ${shortAddress}: PRIOR balance (${priorBalanceFormatted}) is less than minimum swap amount (${MINIMUM_SWAP_AMOUNT}). Skipping.`, "warning");
+          if (parseFloat(priorBalanceFormatted) < swapAmount) {
+            addLog(`Wallet ${shortAddress}: PRIOR balance (${priorBalanceFormatted}) is less than swap amount (${swapAmount}). Skipping.`, "warning");
             continue;
           }
 
-          const randomAmount = getRandomNumber(MINIMUM_SWAP_AMOUNT, Math.min(0.01, parseFloat(priorBalanceFormatted)));
-          const amountPrior = ethers.parseEther(randomAmount.toFixed(6));
+          const amountPrior = ethers.parseEther(swapAmount.toString());
           const isUSDC = i % 2 === 1;
-          const functionSelector = isUSDC ? "0xf3b68002" : "0x03b530a3";
           const swapTarget = isUSDC ? "USDC" : "USDT";
 
           try {
             const approveTx = await priorToken.approve(routerAddress, amountPrior);
-            const txHash = approveTx.hash;
-            addLog(`Wallet ${shortAddress}: Approval Transaction sent. Hash: ${getShortHash(txHash)}`, "prior");
+            const approveTxHash = approveTx.hash;
+            addLog(`Wallet ${shortAddress}: Approval Transaction sent. Hash: ${getShortHash(approveTxHash)}`, "prior");
             const approveReceipt = await approveTx.wait();
             if (approveReceipt.status !== 1) {
               addLog(`Wallet ${shortAddress}: Approval failed. Skipping this cycle.`, "prior");
@@ -379,36 +412,31 @@ async function runAutoSwap() {
             continue;
           }
 
-          const paramHex = ethers.zeroPadValue(ethers.toBeHex(amountPrior), 32);
-          const txData = functionSelector + paramHex.slice(2);
           try {
             addLog(`Wallet ${shortAddress}: Performing swap PRIOR ➯ ${swapTarget}, Amount ${ethers.formatEther(amountPrior)} PRIOR`, "prior");
-            const tx = await wallet.sendTransaction({
-              to: routerAddress,
-              data: txData,
-              gasLimit: 500000
-            });
-            const txHash = tx.hash;
-            addLog(`Wallet ${shortAddress}: Transaction sent. Hash: ${getShortHash(txHash)}`, "prior");
-            const receipt = await tx.wait();
+            const swapTx = isUSDC
+              ? await routerContract.swapPriorToUSDC(amountPrior, { gasLimit: 500000 })
+              : await routerContract.swapPriorToUSDT(amountPrior, { gasLimit: 500000 });
+            const swapTxHash = swapTx.hash;
+            addLog(`Wallet ${shortAddress}: Swap Transaction sent. Hash: ${getShortHash(swapTxHash)}`, "prior");
+            const receipt = await swapTx.wait();
             if (receipt.status === 1) {
-              addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} successful.`, "prior");
+              addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} successful.`, "success");
               await updateWalletData();
               addLog(`Wallet ${shortAddress}: Swap ${i} completed.`, "prior");
             } else {
-              addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} failed.`, "prior");
+              addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} failed.`, "error");
             }
           } catch (txError) {
-            addLog(`Wallet ${shortAddress}: Error sending swap transaction: ${txError.message}`, "prior");
+            addLog(`Wallet ${shortAddress}: Error sending swap transaction: ${txError.message}`, "error");
           }
         }
 
         if (i < loopCount) {
-          const delay = getRandomDelay();
-          const minutes = Math.floor(delay / 60000);
-          const seconds = Math.floor((delay % 60000) / 1000);
+          const minutes = Math.floor(swapInterval / 60000);
+          const seconds = Math.floor((swapInterval % 60000) / 1000);
           addLog(`Prior Swap: Waiting ${minutes} minutes ${seconds} seconds before the next transaction`, "prior");
-          await waitWithCancel(delay, "prior");
+          await waitWithCancel(swapInterval, "prior");
           if (priorSwapCancelled) {
             addLog("Prior Swap: Auto swap stopped during wait time.", "prior");
             break;
