@@ -7,8 +7,8 @@ const RPC_URL = process.env.RPC_URL;
 const PRIVATE_KEYS = [
   process.env.PRIVATE_KEY_1,
   process.env.PRIVATE_KEY_2,
-  // လိုချင်ရင် PRIVATE_KEY_3, PRIVATE_KEY_4 စသဖြင့် ထပ်ထည့်လို့ ရတယ်
-].filter(key => key); // ဗလာ key တွေ မပါအောင် filter လုပ်တယ်
+  // If desired, you can add more like PRIVATE_KEY_3, PRIVATE_KEY_4, etc.
+].filter(key => key); // Filter out empty keys to avoid including them
 const USDC_ADDRESS = "0x109694D75363A75317A8136D80f50F871E81044e";
 const USDT_ADDRESS = "0x014397DaEa96CaC46DbEdcbce50A42D5e0152B2E";
 const PRIOR_ADDRESS = "0xc19Ec2EEBB009b2422514C51F9118026f1cD89ba";
@@ -38,7 +38,7 @@ const routerABI = [
     "stateMutability": "nonpayable",
     "type": "function"
   },
-  {
+  Dedication: {
     "inputs": [{ "internalType": "uint256", "name": "varg0", "type": "uint256" }],
     "name": "swapPriorToUSDT",
     "outputs": [],
@@ -91,7 +91,7 @@ function updateLogs() {
 function clearTransactionLogs() {
   transactionLogs = [];
   updateLogs();
-  addLog("Transaction logs telah dihapus.", "system");
+  addLog("Transaction logs have been cleared.", "system");
 }
 
 async function waitWithCancel(delay, type) {
@@ -135,7 +135,7 @@ figlet.text("ADB NODE".toUpperCase(), { font: "ANSI Shadow" }, (err, data) => {
 const descriptionBox = blessed.box({
   left: "center",
   width: "100%",
-  content: "{center}{bold}{bright-yellow-fg}                                                  « ✮  P̳̿͟͞R̳̿͟͞I̳̿͟͞O̳̿͟͞R̳̿͟͞ A̳̿͟͞U̳̿͟͞T̳̿͟͞O̳̿͟͞ B̳̿͟͞O̳̿͟͞T̳̿͟͞ ✮ »{/bright-yellow-fg}{/bold}{/center}",
+  content: "{center}{bold}{bright-yellow-fg}                                                  « ✮  PRIOR AUTO BOT ✮ »{/bright-yellow-fg}{/bold}{/center}",
   tags: true,
   style: { fg: "white", bg: "default" }
 });
@@ -156,11 +156,11 @@ const logsBox = blessed.box({
 });
 
 const walletBox = blessed.box({
-  label: " Informasi Wallets ",
+  label: " Wallet Information ",
   border: { type: "line" },
   tags: true,
   style: { border: { fg: "magenta" }, fg: "white", bg: "default" },
-  content: "Loading Data wallets..."
+  content: "Loading wallet data..."
 });
 
 const mainMenu = blessed.list({
@@ -253,7 +253,7 @@ async function updateWalletData() {
       };
     }));
     updateWallet();
-    addLog("Balance & Wallets Updated !!", "system");
+    addLog("Balance & Wallets Updated!!", "system");
   } catch (error) {
     addLog("Failed to retrieve wallet data: " + error.message, "system");
   }
@@ -281,17 +281,17 @@ async function autoClaimFaucet() {
         const waitTime = nextClaimTime - currentTime;
         const waitHours = Math.floor(waitTime / 3600);
         const waitMinutes = Math.floor((waitTime % 3600) / 60);
-        addLog(`Wallet ${shortAddress}: You have to wait ${waitHours} Hours ${waitMinutes} minutes before claiming again.`, "warning");
+        addLog(`Wallet ${shortAddress}: You have to wait ${waitHours} hours ${waitMinutes} minutes before claiming again.`, "warning");
         continue;
       }
       addLog(`Wallet ${shortAddress}: Starting Claim Faucet PRIOR...`, "system");
       const tx = await faucetContract.claimTokens();
       const txHash = tx.hash;
-      addLog(`Wallet ${shortAddress}: Transaction Sent!!. Hash: ${getShortHash(txHash)}`, "warning");
+      addLog(`Wallet ${shortAddress}: Transaction Sent!! Hash: ${getShortHash(txHash)}`, "warning");
 
       const receipt = await tx.wait();
       if (receipt.status === 1) {
-        addLog(`Wallet ${shortAddress}: Claim Faucet Successfully!!`, "success");
+        addLog(`Wallet ${shortAddress}: Claim Faucet Successful!!`, "success");
         await updateWalletData();
       } else {
         addLog(`Wallet ${shortAddress}: Claim Faucet Failed.`, "error");
@@ -304,21 +304,21 @@ async function autoClaimFaucet() {
 
 async function runAutoSwap() {
   promptBox.setFront();
-  promptBox.readInput("Masukkan Jumlah Swap:", "", async (err, value) => {
+  promptBox.readInput("Enter Swap Amount:", "", async (err, value) => {
     promptBox.hide();
     safeRender();
     if (err || !value) {
-      addLog("Prior Swap: Input tidak valid atau dibatalkan.", "prior");
+      addLog("Prior Swap: Invalid input or cancelled.", "prior");
       return;
     }
     const loopCount = parseInt(value);
     if (isNaN(loopCount)) {
-      addLog("Prior Swap: Input harus berupa angka.", "prior");
+      addLog("Prior Swap: Input must be a number.", "prior");
       return;
     }
-    addLog(`Prior Swap: Anda Memasukkan ${loopCount} kali auto swap untuk semua wallet.`, "prior");
+    addLog(`Prior Swap: You entered ${loopCount} auto swaps for all wallets.`, "prior");
     if (priorSwapRunning) {
-      addLog("Prior: Transaksi Sedang Berjalan. Silahkan stop transaksi terlebih dahulu.", "prior");
+      addLog("Prior Swap: Transactions are currently running. Please stop transactions first.", "prior");
       return;
     }
 
@@ -334,7 +334,7 @@ async function runAutoSwap() {
 
     for (let i = 1; i <= loopCount; i++) {
       if (priorSwapCancelled) {
-        addLog(`Prior Swap: Auto swap dihentikan pada Cycle Ke ${i}.`, "prior");
+        addLog(`Prior Swap: Auto swap stopped at Cycle ${i}.`, "prior");
         break;
       }
 
@@ -351,39 +351,39 @@ async function runAutoSwap() {
         try {
           const approveTx = await priorToken.approve(routerAddress, amountPrior);
           const txHash = approveTx.hash;
-          addLog(`Wallet ${shortAddress}: Approval Transaction dikirim. Hash: ${getShortHash(txHash)}`, "prior");
+          addLog(`Wallet ${shortAddress}: Approval Transaction sent. Hash: ${getShortHash(txHash)}`, "prior");
           const approveReceipt = await approveTx.wait();
           if (approveReceipt.status !== 1) {
-            addLog(`Wallet ${shortAddress}: Approval gagal. Melewati Cycle ini.`, "prior");
+            addLog(`Wallet ${shortAddress}: Approval failed. Skipping this cycle.`, "prior");
             continue;
           }
-          addLog(`Wallet ${shortAddress}: Approval berhasil.`, "prior");
+          addLog(`Wallet ${shortAddress}: Approval successful.`, "prior");
         } catch (approvalError) {
-          addLog(`Wallet ${shortAddress}: Error saat approval: ${approvalError.message}`, "prior");
+          addLog(`Wallet ${shortAddress}: Error during approval: ${approvalError.message}`, "prior");
           continue;
         }
 
         const paramHex = ethers.zeroPadValue(ethers.toBeHex(amountPrior), 32);
         const txData = functionSelector + paramHex.slice(2);
         try {
-          addLog(`Wallet ${shortAddress}: Melakukan swap PRIOR ➯ ${swapTarget}, Amount ${ethers.formatEther(amountPrior)} PRIOR`, "prior");
+          addLog(`Wallet ${shortAddress}: Performing swap PRIOR ➯ ${swapTarget}, Amount ${ethers.formatEther(amountPrior)} PRIOR`, "prior");
           const tx = await wallet.sendTransaction({
             to: routerAddress,
             data: txData,
             gasLimit: 500000
           });
           const txHash = tx.hash;
-          addLog(`Wallet ${shortAddress}: Transaksi dikirim. Hash: ${getShortHash(txHash)}`, "prior");
+          addLog(`Wallet ${shortAddress}: Transaction sent. Hash: ${getShortHash(txHash)}`, "prior");
           const receipt = await tx.wait();
           if (receipt.status === 1) {
-            addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} berhasil.`, "prior");
+            addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} successful.`, "prior");
             await updateWalletData();
-            addLog(`Wallet ${shortAddress}: Swap Ke ${i} Selesai.`, "prior");
+            addLog(`Wallet ${shortAddress}: Swap ${i} completed.`, "prior");
           } else {
-            addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} gagal.`, "prior");
+            addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} failed.`, "prior");
           }
         } catch (txError) {
-          addLog(`Wallet ${shortAddress}: Error saat mengirim transaksi swap: ${txError.message}`, "prior");
+          addLog(`Wallet ${shortAddress}: Error sending swap transaction: ${txError.message}`, "prior");
         }
       }
 
@@ -391,10 +391,10 @@ async function runAutoSwap() {
         const delay = getRandomDelay();
         const minutes = Math.floor(delay / 60000);
         const seconds = Math.floor((delay % 60000) / 1000);
-        addLog(`Prior: Menunggu ${minutes} menit ${seconds} detik sebelum transaksi berikutnya`, "prior");
+        addLog(`Prior Swap: Waiting ${minutes} minutes ${seconds} seconds before the next transaction`, "prior");
         await waitWithCancel(delay, "prior");
         if (priorSwapCancelled) {
-          addLog("Prior: Auto swap Dihentikan saat waktu tunggu.", "prior");
+          addLog("Prior Swap: Auto swap stopped during wait time.", "prior");
           break;
         }
       }
@@ -403,7 +403,7 @@ async function runAutoSwap() {
     mainMenu.setItems(getMainMenuItems());
     priorSubMenu.setItems(getPriorMenuItems());
     safeRender();
-    addLog("Prior Swap: Auto swap selesai.", "prior");
+    addLog("Prior Swap: Auto swap completed.", "prior");
   });
 }
 
@@ -470,9 +470,9 @@ priorSubMenu.on("select", (item) => {
   } else if (selected === "Stop Transaction") {
     if (priorSwapRunning) {
       priorSwapCancelled = true;
-      addLog("Prior Swap: Perintah Stop Transaction diterima.", "prior");
+      addLog("Prior Swap: Stop Transaction command received.", "prior");
     } else {
-      addLog("Prior Swap: Tidak ada transaksi yang berjalan.", "prior");
+      addLog("Prior Swap: No transactions are running.", "prior");
     }
   } else if (selected === "Clear Transaction Logs") {
     clearTransactionLogs();
