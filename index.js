@@ -140,8 +140,8 @@ const headerBox = blessed.box({
   style: { fg: "white", bg: "default" }
 });
 
-figlet.text("NT EXHAUST".toUpperCase(), { font: "ANSI Shadow", horizontalLayout: "default" }, (err, data) => {
-  if (err) headerBox.setContent("{center}{bold}NT Exhaust{/bold}{/center}");
+figlet.text("ADB NODE".toUpperCase(), { font: "ANSI Shadow", horizontalLayout: "default" }, (err, data) => {
+  if (err) headerBox.setContent("{center}{bold}ADB NODE{/bold}{/center}");
   else headerBox.setContent(`{center}{bold}{bright-cyan-fg}${data}{/bright-cyan-fg}{/bold}{/center}`);
   safeRender();
 });
