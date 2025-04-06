@@ -303,108 +303,127 @@ async function autoClaimFaucet() {
 }
 
 async function runAutoSwap() {
-  promptBox.setFront();
-  promptBox.readInput("Enter Swap Amount:", "", async (err, value) => {
-    promptBox.hide();
-    safeRender();
-    if (err || !value) {
-      addLog("Prior Swap: Invalid input or cancelled.", "prior");
-      return;
-    }
-    const loopCount = parseInt(value);
-    if (isNaN(loopCount)) {
-      addLog("Prior Swap: Input must be a number.", "prior");
-      return;
-    }
-    addLog(`Prior Swap: You entered ${loopCount} auto swaps for all wallets.`, "prior");
-    if (priorSwapRunning) {
-      addLog("Prior Swap: Transactions are currently running. Please stop transactions first.", "prior");
-      return;
-    }
+  const MINIMUM_SWAP_AMOUNT = 0.005; // Minimum swap amount in PRIOR
 
-    const provider = new ethers.JsonRpcProvider(RPC_URL);
-    globalWallets = PRIVATE_KEYS.map(key => new ethers.Wallet(key, provider));
-
-    priorSwapRunning = true;
-    priorSwapCancelled = false;
-    mainMenu.setItems(getMainMenuItems());
-    priorSubMenu.setItems(getPriorMenuItems());
-    priorSubMenu.show();
-    safeRender();
-
-    for (let i = 1; i <= loopCount; i++) {
-      if (priorSwapCancelled) {
-        addLog(`Prior Swap: Auto swap stopped at Cycle ${i}.`, "prior");
-        break;
+  const promptForSwapAmount = async () => {
+    promptBox.setFront();
+    promptBox.readInput("Enter Swap Amount (e.g., 0.1 for 0.1 PRIOR per swap, number of swaps):", "", async (err, value) => {
+      promptBox.hide();
+      safeRender();
+      if (err || !value) {
+        addLog("Prior Swap: Invalid input or cancelled.", "prior");
+        return;
       }
 
-      for (const wallet of globalWallets) {
-        if (priorSwapCancelled) break;
-        const shortAddress = getShortAddress(wallet.address);
-        const priorToken = new ethers.Contract(PRIOR_ADDRESS, ERC20_ABI, wallet);
-        const randomAmount = getRandomNumber(0.001, 0.01);
-        const amountPrior = ethers.parseEther(randomAmount.toFixed(6));
-        const isUSDC = i % 2 === 1;
-        const functionSelector = isUSDC ? "0xf3b68002" : "0x03b530a3";
-        const swapTarget = isUSDC ? "USDC" : "USDT";
-
-        try {
-          const approveTx = await priorToken.approve(routerAddress, amountPrior);
-          const txHash = approveTx.hash;
-          addLog(`Wallet ${shortAddress}: Approval Transaction sent. Hash: ${getShortHash(txHash)}`, "prior");
-          const approveReceipt = await approveTx.wait();
-          if (approveReceipt.status !== 1) {
-            addLog(`Wallet ${shortAddress}: Approval failed. Skipping this cycle.`, "prior");
-            continue;
-          }
-          addLog(`Wallet ${shortAddress}: Approval successful.`, "prior");
-        } catch (approvalError) {
-          addLog(`Wallet ${shortAddress}: Error during approval: ${approvalError.message}`, "prior");
-          continue;
-        }
-
-        const paramHex = ethers.zeroPadValue(ethers.toBeHex(amountPrior), 32);
-        const txData = functionSelector + paramHex.slice(2);
-        try {
-          addLog(`Wallet ${shortAddress}: Performing swap PRIOR ➯ ${swapTarget}, Amount ${ethers.formatEther(amountPrior)} PRIOR`, "prior");
-          const tx = await wallet.sendTransaction({
-            to: routerAddress,
-            data: txData,
-            gasLimit: 500000
-          });
-          const txHash = tx.hash;
-          addLog(`Wallet ${shortAddress}: Transaction sent. Hash: ${getShortHash(txHash)}`, "prior");
-          const receipt = await tx.wait();
-          if (receipt.status === 1) {
-            addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} successful.`, "prior");
-            await updateWalletData();
-            addLog(`Wallet ${shortAddress}: Swap ${i} completed.`, "prior");
-          } else {
-            addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} failed.`, "prior");
-          }
-        } catch (txError) {
-          addLog(`Wallet ${shortAddress}: Error sending swap transaction: ${txError.message}`, "prior");
-        }
+      const loopCount = parseFloat(value);
+      if (isNaN(loopCount) || loopCount <= 0) {
+        addLog("Prior Swap: Input must be a positive number greater than 0.", "prior");
+        promptForSwapAmount(); // Prompt again if invalid
+        return;
       }
 
-      if (i < loopCount) {
-        const delay = getRandomDelay();
-        const minutes = Math.floor(delay / 60000);
-        const seconds = Math.floor((delay % 60000) / 1000);
-        addLog(`Prior Swap: Waiting ${minutes} minutes ${seconds} seconds before the next transaction`, "prior");
-        await waitWithCancel(delay, "prior");
+      addLog(`Prior Swap: You entered ${loopCount} auto swaps for all wallets.`, "prior");
+      if (priorSwapRunning) {
+        addLog("Prior Swap: Transactions are currently running. Please stop transactions first.", "prior");
+        return;
+      }
+
+      const provider = new ethers.JsonRpcProvider(RPC_URL);
+      globalWallets = PRIVATE_KEYS.map(key => new ethers.Wallet(key, provider));
+
+      priorSwapRunning = true;
+      priorSwapCancelled = false;
+      mainMenu.setItems(getMainMenuItems());
+      priorSubMenu.setItems(getPriorMenuItems());
+      priorSubMenu.show();
+      safeRender();
+
+      for (let i = 1; i <= loopCount; i++) {
         if (priorSwapCancelled) {
-          addLog("Prior Swap: Auto swap stopped during wait time.", "prior");
+          addLog(`Prior Swap: Auto swap stopped at Cycle ${i}.`, "prior");
           break;
         }
+
+        for (const wallet of globalWallets) {
+          if (priorSwapCancelled) break;
+          const shortAddress = getShortAddress(wallet.address);
+          const priorToken = new ethers.Contract(PRIOR_ADDRESS, ERC20_ABI, wallet);
+
+          // Check PRIOR balance
+          const priorBalance = await priorToken.balanceOf(wallet.address);
+          const priorBalanceFormatted = ethers.formatEther(priorBalance);
+
+          if (parseFloat(priorBalanceFormatted) < MINIMUM_SWAP_AMOUNT) {
+            addLog(`Wallet ${shortAddress}: PRIOR balance (${priorBalanceFormatted}) is less than minimum swap amount (${MINIMUM_SWAP_AMOUNT}). Skipping.`, "warning");
+            continue;
+          }
+
+          const randomAmount = getRandomNumber(MINIMUM_SWAP_AMOUNT, Math.min(0.01, parseFloat(priorBalanceFormatted)));
+          const amountPrior = ethers.parseEther(randomAmount.toFixed(6));
+          const isUSDC = i % 2 === 1;
+          const functionSelector = isUSDC ? "0xf3b68002" : "0x03b530a3";
+          const swapTarget = isUSDC ? "USDC" : "USDT";
+
+          try {
+            const approveTx = await priorToken.approve(routerAddress, amountPrior);
+            const txHash = approveTx.hash;
+            addLog(`Wallet ${shortAddress}: Approval Transaction sent. Hash: ${getShortHash(txHash)}`, "prior");
+            const approveReceipt = await approveTx.wait();
+            if (approveReceipt.status !== 1) {
+              addLog(`Wallet ${shortAddress}: Approval failed. Skipping this cycle.`, "prior");
+              continue;
+            }
+            addLog(`Wallet ${shortAddress}: Approval successful.`, "prior");
+          } catch (approvalError) {
+            addLog(`Wallet ${shortAddress}: Error during approval: ${approvalError.message}`, "prior");
+            continue;
+          }
+
+          const paramHex = ethers.zeroPadValue(ethers.toBeHex(amountPrior), 32);
+          const txData = functionSelector + paramHex.slice(2);
+          try {
+            addLog(`Wallet ${shortAddress}: Performing swap PRIOR ➯ ${swapTarget}, Amount ${ethers.formatEther(amountPrior)} PRIOR`, "prior");
+            const tx = await wallet.sendTransaction({
+              to: routerAddress,
+              data: txData,
+              gasLimit: 500000
+            });
+            const txHash = tx.hash;
+            addLog(`Wallet ${shortAddress}: Transaction sent. Hash: ${getShortHash(txHash)}`, "prior");
+            const receipt = await tx.wait();
+            if (receipt.status === 1) {
+              addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} successful.`, "prior");
+              await updateWalletData();
+              addLog(`Wallet ${shortAddress}: Swap ${i} completed.`, "prior");
+            } else {
+              addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} failed.`, "prior");
+            }
+          } catch (txError) {
+            addLog(`Wallet ${shortAddress}: Error sending swap transaction: ${txError.message}`, "prior");
+          }
+        }
+
+        if (i < loopCount) {
+          const delay = getRandomDelay();
+          const minutes = Math.floor(delay / 60000);
+          const seconds = Math.floor((delay % 60000) / 1000);
+          addLog(`Prior Swap: Waiting ${minutes} minutes ${seconds} seconds before the next transaction`, "prior");
+          await waitWithCancel(delay, "prior");
+          if (priorSwapCancelled) {
+            addLog("Prior Swap: Auto swap stopped during wait time.", "prior");
+            break;
+          }
+        }
       }
-    }
-    priorSwapRunning = false;
-    mainMenu.setItems(getMainMenuItems());
-    priorSubMenu.setItems(getPriorMenuItems());
-    safeRender();
-    addLog("Prior Swap: Auto swap completed.", "prior");
-  });
+      priorSwapRunning = false;
+      mainMenu.setItems(getMainMenuItems());
+      priorSubMenu.setItems(getPriorMenuItems());
+      safeRender();
+      addLog("Prior Swap: Auto swap completed.", "prior");
+    });
+  };
+
+  promptForSwapAmount();
 }
 
 function adjustLayout() {
