@@ -14,12 +14,7 @@ cd PriorAutoBot-NTE
 npm install
 ```
 
-3. Set up your environment:
-```bash
-cp .env.example .env
-```
-
-4. Edit the `.env` file with your private key(s):
+3. Edit the `.env` file with your private key(s):
 ```bash
 nano .env
 ```
