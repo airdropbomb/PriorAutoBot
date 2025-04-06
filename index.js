@@ -253,16 +253,16 @@ async function updateWalletData() {
       };
     }));
     updateWallet();
-    addLog("Saldo & Wallets Updated !!", "system");
+    addLog("Balance & Wallets Updated !!", "system");
   } catch (error) {
-    addLog("Gagal mengambil data wallets: " + error.message, "system");
+    addLog("Failed to retrieve wallet data: " + error.message, "system");
   }
 }
 
 function stopAllTransactions() {
   if (priorSwapRunning) {
     priorSwapCancelled = true;
-    addLog("Stop All Transactions command received. Semua transaksi telah dihentikan.", "system");
+    addLog("Stop All Transactions command received. All transactions have been stopped.", "system");
   }
 }
 
