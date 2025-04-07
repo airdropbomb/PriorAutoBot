@@ -1,5 +1,5 @@
 {
-  "name": "NT Exhaust - Prior Auto Bot",
+  "name": "BY ADB NODE - Prior Auto Bot",
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
@@ -12,6 +12,7 @@
   "description": "",
   "dependencies": {
     "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.5",
     "figlet": "^1.8.0"
