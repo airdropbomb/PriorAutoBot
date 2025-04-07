@@ -1,12 +1,12 @@
-# PriorAutoBot-NTE
+# PriorAutoBot
 This bot automates faucet and swapping PRIOR tokens for USDT/USDC on the Base Sepolia testnet to help users participate in the PRIOR airdrop activity.
 
 ## 🚀 Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/airdropbomb/PriorAutoBot-NTE.git
-cd PriorAutoBot-NTE
+git clone https://github.com/airdropbomb/PriorAutoBot.git
+cd PriorAutoBot
 ```
 
 2. Install dependencies:
