@@ -4,16 +4,14 @@ import figlet from "figlet";
 import { ethers } from "ethers";
 
 const RPC_URL = process.env.RPC_URL;
-// Load multiple private keys from environment (e.g., PRIVATE_KEYS="key1,key2,key3")
 const PRIVATE_KEYS = process.env.PRIVATE_KEYS.split(",");
 const USDC_ADDRESS = "0x109694D75363A75317A8136D80f50F871E81044e";
-const USDT_ADDRESS = "0x014397DaEa96CaC46DbEdcbce50A42D5e0152B2E";
+const USDT_ADDRESS = "0x014397DaEadee46DbEdcbce50A42D5e0152B2E";
 const PRIOR_ADDRESS = "0xc19Ec2EEBB009b2422514C51F9118026f1cD89ba";
 const routerAddress = "0x0f1DADEcc263eB79AE3e4db0d57c49a8b6178B0B";
 const FAUCET_ADDRESS = "0xCa602D9E45E1Ed25105Ee43643ea936B8e2Fd6B7";
 const NETWORK_NAME = "PRIOR TESTNET";
 
-// Array to store multiple wallet info
 let walletsInfo = [];
 let transactionLogs = [];
 let priorSwapRunning = false;
@@ -24,23 +22,73 @@ const ERC20_ABI = [/* unchanged */];
 const routerABI = [/* unchanged */];
 const FAUCET_ABI = [/* unchanged */];
 
-// Utility functions (unchanged except where noted)
 function getShortAddress(address) { return address.slice(0, 6) + "..." + address.slice(-4); }
-function addLog(message, type) { /* unchanged */ }
+function addLog(message, type) {
+  const timestamp = new Date().toLocaleTimeString();
+  let coloredMessage = message;
+  if (type === "prior") coloredMessage = `{cyan-fg}🚀 ${message}{/cyan-fg}`;
+  else if (type === "system") coloredMessage = `{white-fg}💾 ${message}{/white-fg}`;
+  else if (type === "error") coloredMessage = `{red-fg}❌ ${message}{/red-fg}`;
+  else if (type === "success") coloredMessage = `{green-fg}✅ ${message}{/green-fg}`;
+  else if (type === "warning") coloredMessage = `{yellow-fg}⚠️ ${message}{/yellow-fg}`;
+  transactionLogs.push(`{grey-fg}[${timestamp}]{/grey-fg} ${coloredMessage}`);
+  if (transactionLogs.length > 100) transactionLogs.shift();
+  updateLogs();
+}
 function getRandomDelay() { return Math.random() * (60000 - 30000) + 30000; }
 function getRandomNumber(min, max) { return Math.random() * (max - min) + min; }
 function getShortHash(hash) { return hash.slice(0, 6) + "..." + hash.slice(-4); }
-function updateLogs() { /* unchanged */ }
-function clearTransactionLogs() { /* unchanged */ }
-async function waitWithCancel(delay, type) { /* unchanged */ }
+function updateLogs() {
+  logsBox.setContent(transactionLogs.join("\n"));
+  logsBox.setScrollPerc(100);
+  screen.render();
+}
+function clearTransactionLogs() {
+  transactionLogs = [];
+  updateLogs();
+  addLog("Logs purged 🗑️.", "system");
+}
+async function waitWithCancel(delay, type) {
+  return Promise.race([
+    new Promise(resolve => setTimeout(resolve, delay)),
+    new Promise(resolve => {
+      const interval = setInterval(() => {
+        if (type === "prior" && priorSwapCancelled) { clearInterval(interval); resolve(); }
+      }, 100);
+    })
+  ]);
+}
 
-const screen = blessed.screen({ /* unchanged */ });
+const screen = blessed.screen({
+  smartCSR: true,
+  title: "PRIOR_CYBERNET",
+  fullUnicode: true,
+  mouse: true
+});
+
+// Define safeRender function
+function safeRender() {
+  try {
+    screen.render();
+  } catch (error) {
+    addLog(`Render error: ${error.message}`, "error");
+  }
+}
+
 const headerBox = blessed.box({ /* unchanged */ });
-figlet.text("ADB NODE", { font: "Doom" }, (err, data) => { /* unchanged */ });
+figlet.text("ADB NODE", { font: "Doom" }, (err, data) => {
+  if (err) headerBox.setContent("{center}{bold}ADB NODE{/bold}{/center}");
+  else {
+    let pulseState = 0;
+    setInterval(() => {
+      pulseState = (pulseState + 1) % 2;
+      headerBox.setContent(`{center}{bold}${pulseState ? "{cyan-fg}" : "{white-fg}"}${data}${pulseState ? "{/cyan-fg}" : "{/white-fg}"}{/bold}{/center}`);
+      safeRender();
+    }, 1500);
+  }
+});
 const descriptionBox = blessed.box({ /* unchanged */ });
 const logsBox = blessed.box({ /* unchanged */ });
-
-// Adjusted walletBox to display multiple wallets
 const walletBox = blessed.box({
   label: "{cyan-fg}◄ WALLETS 💰 ►{/cyan-fg}",
   top: "20%",
@@ -51,10 +99,9 @@ const walletBox = blessed.box({
   tags: true,
   style: { border: { fg: "cyan" }, fg: "white", bg: "black" },
   content: "Initializing wallets... 🔄",
-  scrollable: true, // Allow scrolling if many wallets
+  scrollable: true,
   scrollbar: { ch: "│", style: { bg: "cyan" } }
 });
-
 const codeStreamBox = blessed.box({ /* unchanged */ });
 const mainMenu = blessed.list({ /* unchanged */ });
 const priorSubMenu = blessed.list({ /* unchanged */ });
@@ -71,7 +118,6 @@ screen.append(priorSubMenu);
 function getMainMenuItems() { /* unchanged */ }
 function getPriorMenuItems() { /* unchanged */ }
 
-// Update wallet display for multiple wallets
 function updateWalletsDisplay() {
   let content = "";
   walletsInfo.forEach((walletInfo, index) => {
@@ -92,12 +138,19 @@ function updateWalletsDisplay() {
   safeRender();
 }
 
-// Fake code stream (unchanged)
 const fakeCodeSnippets = [/* unchanged */];
-function updateCodeStream() { /* unchanged */ }
+function updateCodeStream() {
+  const lines = Math.floor(codeStreamBox.height - 2);
+  let content = "";
+  for (let i = 0; i < lines; i++) {
+    const randomSnippet = fakeCodeSnippets[Math.floor(Math.random() * fakeCodeSnippets.length)];
+    content += `{green-fg}${randomSnippet}{/green-fg}\n`;
+  }
+  codeStreamBox.setContent(content.trim());
+  safeRender();
+}
 setInterval(updateCodeStream, 1000);
 
-// Initialize and update multiple wallets
 async function updateWalletsData() {
   try {
     const provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -134,9 +187,13 @@ async function updateWalletsData() {
   }
 }
 
-function stopAllTransactions() { /* unchanged */ }
+function stopAllTransactions() {
+  if (priorSwapRunning) {
+    priorSwapCancelled = true;
+    addLog("All stopped ⛔.", "system");
+  }
+}
 
-// Adjusted to handle multiple wallets
 async function autoClaimFaucet() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   for (let i = 0; i < globalWallets.length; i++) {
@@ -175,7 +232,6 @@ async function autoClaimFaucet() {
   await updateWalletsData();
 }
 
-// Adjusted for multiple wallets
 async function runAutoSwap() {
   promptBox.setFront();
   promptBox.readInput("Swap cycles: 🔢", "", async (err, value) => {
@@ -270,7 +326,24 @@ async function runAutoSwap() {
   });
 }
 
-function adjustLayout() { /* unchanged */ }
+function adjustLayout() {
+  const screenHeight = screen.height;
+  headerBox.height = Math.floor(screenHeight * 0.15);
+  descriptionBox.top = headerBox.height;
+  descriptionBox.height = Math.floor(screenHeight * 0.05);
+  logsBox.top = headerBox.height + descriptionBox.height;
+  logsBox.height = screenHeight - (headerBox.height + descriptionBox.height);
+  walletBox.top = headerBox.height + descriptionBox.height;
+  walletBox.height = Math.floor(screenHeight * 0.25);
+  codeStreamBox.top = headerBox.height + descriptionBox.height + walletBox.height;
+  codeStreamBox.height = Math.floor(screenHeight * 0.30);
+  mainMenu.top = headerBox.height + descriptionBox.height + walletBox.height + codeStreamBox.height;
+  mainMenu.height = screenHeight - (headerBox.height + descriptionBox.height + walletBox.height + codeStreamBox.height);
+  priorSubMenu.top = mainMenu.top;
+  priorSubMenu.height = mainMenu.height;
+  safeRender();
+}
+
 screen.on("resize", adjustLayout);
 adjustLayout();
 
@@ -286,12 +359,32 @@ mainMenu.on("select", (item) => {
   safeRender();
 });
 
-priorSubMenu.on("select", (item) => { /* unchanged */ });
+priorSubMenu.on("select", (item) => {
+  const selected = item.getText();
+  if (selected === "Auto Swap") runAutoSwap();
+  else if (selected === "Stop Swap") {
+    if (priorSwapRunning) priorSwapCancelled = true, addLog("Swap stopped ⛔.", "prior");
+    else addLog("Swap: No active ops 🚫.", "prior");
+  }
+  else if (selected === "Clear Logs") clearTransactionLogs();
+  else if (selected === "Back") priorSubMenu.hide(), mainMenu.show(), mainMenu.focus();
+  else if (selected === "Sync") updateWalletsData(), updateLogs(), addLog("Synced 🔄.", "system");
+  priorSubMenu.setItems(getPriorMenuItems());
+  safeRender();
+});
+
 screen.key(["escape", "q", "C-c"], () => process.exit(0));
 screen.key(["C-up"], () => { logsBox.scroll(-1); safeRender(); });
 screen.key(["C-down"], () => { logsBox.scroll(1); safeRender(); });
 
-setInterval(() => { /* unchanged */ }, 500);
+let lastLogCount = 0;
+setInterval(() => {
+  if (transactionLogs.length > lastLogCount && transactionLogs.length > logsBox.height - 2) {
+    logsBox.scroll(1);
+    safeRender();
+    lastLogCount = transactionLogs.length;
+  }
+}, 500);
 
 safeRender();
 mainMenu.focus();
