@@ -18,9 +18,7 @@ npm install
 ```bash
 nano .env
 ```
-PRIVATE_KEY_1=key1
-PRIVATE_KEY_2=key2
-PRIVATE_KEY_3=key3
+PRIVATE_KEYS=privatekey1,privatekey2
 
 ## 🏃‍♂️ Run the Bot
 
