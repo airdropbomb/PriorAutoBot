@@ -7,12 +7,11 @@ const RPC_URL = process.env.RPC_URL;
 const PRIVATE_KEYS = [
   process.env.PRIVATE_KEY_1,
   process.env.PRIVATE_KEY_2,
-  // If desired, you can add more like PRIVATE_KEY_3, PRIVATE_KEY_4, etc.
-].filter(key => key); // Filter out empty keys to avoid including them
+].filter(key => key);
 const USDC_ADDRESS = "0x109694D75363A75317A8136D80f50F871E81044e";
 const USDT_ADDRESS = "0x014397DaEa96CaC46DbEdcbce50A42D5e0152B2E";
 const PRIOR_ADDRESS = "0xc19Ec2EEBB009b2422514C51F9118026f1cD89ba";
-const routerAddress = "0x0f1DADEcc263eB79AE3e4db0d57c49a8b6178B0B";
+const ROUTER_ADDRESS = "0x0f1DADEcc263eB79AE3e4db0d57c49a8b6178B0B";
 const FAUCET_ADDRESS = "0xCa602D9E45E1Ed25105Ee43643ea936B8e2Fd6B7";
 const NETWORK_NAME = "PRIOR TESTNET";
 
@@ -372,17 +371,11 @@ async function runAutoSwap() {
       priorSubMenu.show();
       safeRender();
 
-      for (let i = 1; i <= loopCount; i++) {
-        if (priorSwapCancelled) {
-          addLog(`Prior Swap: Auto swap stopped at Cycle ${i}.`, "prior");
-          break;
-        }
-
+      for (let i = 1; i <= loopCount && !priorSwapCancelled; i++) {
         for (const wallet of globalWallets) {
           if (priorSwapCancelled) break;
           const shortAddress = getShortAddress(wallet.address);
           const priorToken = new ethers.Contract(PRIOR_ADDRESS, ERC20_ABI, wallet);
-          const routerContract = new ethers.Contract(routerAddress, routerABI, wallet);
 
           // Check PRIOR balance
           const priorBalance = await priorToken.balanceOf(wallet.address);
@@ -396,53 +389,61 @@ async function runAutoSwap() {
           const amountPrior = ethers.parseEther(swapAmount.toString());
           const isUSDC = i % 2 === 1;
           const swapTarget = isUSDC ? "USDC" : "USDT";
+          const functionSelector = isUSDC ? "0xf3b68002" : "0x03b530a3"; // Function selectors from second script
 
           try {
+            // Approve the router to spend PRIOR
             const approveTx = await priorToken.approve(routerAddress, amountPrior);
-            const approveTxHash = approveTx.hash;
-            addLog(`Wallet ${shortAddress}: Approval Transaction sent. Hash: ${getShortHash(approveTxHash)}`, "prior");
-            const approveReceipt = await approveTx.wait();
+            addLog(`Wallet ${shortAddress}: Approval Transaction sent. Hash: ${getShortHash(approveTx.hash)}`, "prior");
+            const approveReceipt = await Promise.race([
+              approveTx.wait(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("Approval timeout")), 10000))
+            ]);
             if (approveReceipt.status !== 1) {
-              addLog(`Wallet ${shortAddress}: Approval failed. Skipping this cycle.`, "prior");
+              addLog(`Wallet ${shortAddress}: Approval failed. Skipping this cycle.`, "error");
               continue;
             }
             addLog(`Wallet ${shortAddress}: Approval successful.`, "prior");
-          } catch (approvalError) {
-            addLog(`Wallet ${shortAddress}: Error during approval: ${approvalError.message}`, "prior");
-            continue;
-          }
 
-          try {
+            // Create manual transaction data
+            const paramHex = ethers.zeroPadValue(ethers.toBeHex(amountPrior), 32);
+            const txData = functionSelector + paramHex.slice(2);
+
+            // Perform swap using sendTransaction
             addLog(`Wallet ${shortAddress}: Performing swap PRIOR ➯ ${swapTarget}, Amount ${ethers.formatEther(amountPrior)} PRIOR`, "prior");
-            const swapTx = isUSDC
-              ? await routerContract.swapPriorToUSDC(amountPrior, { gasLimit: 500000 })
-              : await routerContract.swapPriorToUSDT(amountPrior, { gasLimit: 500000 });
-            const swapTxHash = swapTx.hash;
-            addLog(`Wallet ${shortAddress}: Swap Transaction sent. Hash: ${getShortHash(swapTxHash)}`, "prior");
-            const receipt = await swapTx.wait();
+            const swapTx = await wallet.sendTransaction({
+              to: routerAddress,
+              data: txData,
+              gasLimit: 500000,
+            });
+            addLog(`Wallet ${shortAddress}: Swap Transaction sent. Hash: ${getShortHash(swapTx.hash)}`, "prior");
+
+            const receipt = await Promise.race([
+              swapTx.wait(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("Swap timeout")), 10000))
+            ]);
             if (receipt.status === 1) {
               addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} successful.`, "success");
               await updateWalletData();
-              addLog(`Wallet ${shortAddress}: Swap ${i} completed.`, "prior");
             } else {
-              addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} failed.`, "error");
+              addLog(`Wallet ${shortAddress}: Swap PRIOR ➯ ${swapTarget} failed with status ${receipt.status}.`, "error");
             }
-          } catch (txError) {
-            addLog(`Wallet ${shortAddress}: Error sending swap transaction: ${txError.message}`, "error");
+          } catch (error) {
+            addLog(`Wallet ${shortAddress}: Error during swap: ${error.message}`, "error");
+            if (error.message.includes("timeout")) {
+              addLog(`Wallet ${shortAddress}: Moving to next transaction due to timeout`, "warning");
+            }
           }
         }
 
-        if (i < loopCount) {
+        if (i < loopCount && !priorSwapCancelled) {
           const minutes = Math.floor(swapInterval / 60000);
           const seconds = Math.floor((swapInterval % 60000) / 1000);
           addLog(`Prior Swap: Waiting ${minutes} minutes ${seconds} seconds before the next transaction`, "prior");
           await waitWithCancel(swapInterval, "prior");
-          if (priorSwapCancelled) {
-            addLog("Prior Swap: Auto swap stopped during wait time.", "prior");
-            break;
-          }
         }
       }
+
       priorSwapRunning = false;
       mainMenu.setItems(getMainMenuItems());
       priorSubMenu.setItems(getPriorMenuItems());
