@@ -364,6 +364,28 @@ async function runAutoSwap() {
       const provider = new ethers.JsonRpcProvider(RPC_URL);
       globalWallets = PRIVATE_KEYS.map(key => new ethers.Wallet(key, provider));
 
+      // Check if the router address has contract code
+      try {
+        const code = await provider.getCode(routerAddress);
+        if (code === "0x") {
+          addLog(`Error: No contract found at routerAddress ${routerAddress}`, "error");
+          return;
+        }
+        addLog(`Router contract found at ${routerAddress}`, "system");
+      } catch (error) {
+        addLog(`Error checking routerAddress: ${error.message}`, "error");
+        return;
+      }
+
+      // Test the provider connection
+      try {
+        await provider.getBlockNumber();
+        addLog(`Connected to RPC: ${RPC_URL}`, "system");
+      } catch (error) {
+        addLog(`Error connecting to RPC: ${error.message}`, "error");
+        return;
+      }
+
       priorSwapRunning = true;
       priorSwapCancelled = false;
       mainMenu.setItems(getMainMenuItems());
@@ -409,12 +431,26 @@ async function runAutoSwap() {
             const paramHex = ethers.zeroPadValue(ethers.toBeHex(amountPrior), 32);
             const txData = functionSelector + paramHex.slice(2);
 
+            // Estimate gas for the transaction
+            let gasLimit;
+            try {
+              gasLimit = await wallet.estimateGas({
+                to: routerAddress,
+                data: txData,
+              });
+              gasLimit = gasLimit.mul(120).div(100); // Add 20% buffer
+              addLog(`Wallet ${shortAddress}: Estimated gas: ${gasLimit.toString()}`, "prior");
+            } catch (error) {
+              addLog(`Wallet ${shortAddress}: Gas estimation failed: ${error.message}`, "error");
+              continue;
+            }
+
             // Perform swap using sendTransaction
             addLog(`Wallet ${shortAddress}: Performing swap PRIOR ➯ ${swapTarget}, Amount ${ethers.formatEther(amountPrior)} PRIOR`, "prior");
             const swapTx = await wallet.sendTransaction({
               to: routerAddress,
               data: txData,
-              gasLimit: 500000,
+              gasLimit: gasLimit,
             });
             addLog(`Wallet ${shortAddress}: Swap Transaction sent. Hash: ${getShortHash(swapTx.hash)}`, "prior");
 
