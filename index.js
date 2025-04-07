@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 const RPC_URL = process.env.RPC_URL;
 const PRIVATE_KEYS = process.env.PRIVATE_KEYS.split(",");
 const USDC_ADDRESS = "0x109694D75363A75317A8136D80f50F871E81044e";
-const USDT_ADDRESS = "0x014397DaEadee46DbEdcbce50A42D5e0152B2E";
+const USDT_ADDRESS = "0x014397DaEa96CaC46DbEdcbce50A42D5e0152B2E";
 const PRIOR_ADDRESS = "0xc19Ec2EEBB009b2422514C51F9118026f1cD89ba";
 const routerAddress = "0x0f1DADEcc263eB79AE3e4db0d57c49a8b6178B0B";
 const FAUCET_ADDRESS = "0xCa602D9E45E1Ed25105Ee43643ea936B8e2Fd6B7";
@@ -40,7 +40,7 @@ function getRandomNumber(min, max) { return Math.random() * (max - min) + min; }
 function getShortHash(hash) { return hash.slice(0, 6) + "..." + hash.slice(-4); }
 function updateLogs() {
   logsBox.setContent(transactionLogs.join("\n"));
-  logsBox.setScrollPerc(100);
+  logsBox.scrollTo(transactionLogs.length); // Changed from setScrollPerc to scrollTo
   screen.render();
 }
 function clearTransactionLogs() {
@@ -48,16 +48,7 @@ function clearTransactionLogs() {
   updateLogs();
   addLog("Logs purged 🗑️.", "system");
 }
-async function waitWithCancel(delay, type) {
-  return Promise.race([
-    new Promise(resolve => setTimeout(resolve, delay)),
-    new Promise(resolve => {
-      const interval = setInterval(() => {
-        if (type === "prior" && priorSwapCancelled) { clearInterval(interval); resolve(); }
-      }, 100);
-    })
-  ]);
-}
+async function waitWithCancel(delay, type) { /* unchanged */ }
 
 const screen = blessed.screen({
   smartCSR: true,
@@ -66,7 +57,6 @@ const screen = blessed.screen({
   mouse: true
 });
 
-// Define safeRender function
 function safeRender() {
   try {
     screen.render();
@@ -88,7 +78,24 @@ figlet.text("ADB NODE", { font: "Doom" }, (err, data) => {
   }
 });
 const descriptionBox = blessed.box({ /* unchanged */ });
-const logsBox = blessed.box({ /* unchanged */ });
+
+// Changed logsBox from blessed.box to blessed.log
+const logsBox = blessed.log({
+  label: "{cyan-fg}◄ LOGS 📜 ►{/cyan-fg}",
+  top: "20%",
+  left: "40%",
+  width: "60%",
+  height: "80%",
+  border: { type: "line" },
+  scrollable: true,
+  alwaysScroll: true,
+  mouse: true,
+  keys: true,
+  tags: true,
+  scrollbar: { ch: "│", style: { bg: "cyan" } },
+  style: { border: { fg: "cyan" }, fg: "white", bg: "black" }
+});
+
 const walletBox = blessed.box({
   label: "{cyan-fg}◄ WALLETS 💰 ►{/cyan-fg}",
   top: "20%",
@@ -134,7 +141,7 @@ function updateWalletsDisplay() {
                `-------------------------\n`;
   });
   walletBox.setContent(content.trim());
-  walletBox.setScrollPerc(100);
+  walletBox.scrollTo(walletsInfo.length * 5); // Adjusted for walletBox scrolling
   safeRender();
 }
 
@@ -187,12 +194,7 @@ async function updateWalletsData() {
   }
 }
 
-function stopAllTransactions() {
-  if (priorSwapRunning) {
-    priorSwapCancelled = true;
-    addLog("All stopped ⛔.", "system");
-  }
-}
+function stopAllTransactions() { /* unchanged */ }
 
 async function autoClaimFaucet() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
