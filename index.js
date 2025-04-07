@@ -26,8 +26,29 @@ const ERC20_ABI = [
   "function transferFrom(address from, address to, uint256 amount) returns (bool)"
 ];
 
-const routerABI = [/* unchanged */];
-const FAUCET_ABI = [/* unchanged */];
+const routerABI = [
+  {
+    "inputs": [{ "internalType": "uint256", "name": "varg0", "type": "uint256" }],
+    "name": "swapPriorToUSDC",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "varg0", "type": "uint256" }],
+    "name": "swapPriorToUSDT",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+];
+
+const FAUCET_ABI = [
+  "function claimTokens() external",
+  "function lastClaimTime(address) view returns (uint256)",
+  "function claimCooldown() view returns (uint256)",
+  "function claimAmount() view returns (uint256)"
+];
 
 function getShortAddress(address) { return address.slice(0, 6) + "..." + address.slice(-4); }
 function addLog(message, type) {
@@ -55,7 +76,16 @@ function clearTransactionLogs() {
   updateLogs();
   addLog("Logs purged 🗑️.", "system");
 }
-async function waitWithCancel(delay, type) { /* unchanged */ }
+async function waitWithCancel(delay, type) {
+  return Promise.race([
+    new Promise(resolve => setTimeout(resolve, delay)),
+    new Promise(resolve => {
+      const interval = setInterval(() => {
+        if (type === "prior" && priorSwapCancelled) { clearInterval(interval); resolve(); }
+      }, 100);
+    })
+  ]);
+}
 
 const screen = blessed.screen({
   smartCSR: true,
@@ -72,11 +102,19 @@ function safeRender() {
   }
 }
 
-const headerBox = blessed.box({ /* unchanged */ });
+const headerBox = blessed.box({
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: "15%",
+  tags: true,
+  style: { fg: "cyan", bg: "black" }
+});
+
+let pulseState = 0;
 figlet.text("ADB NODE", { font: "Doom" }, (err, data) => {
   if (err) headerBox.setContent("{center}{bold}ADB NODE{/bold}{/center}");
   else {
-    let pulseState = 0;
     setInterval(() => {
       pulseState = (pulseState + 1) % 2;
       headerBox.setContent(`{center}{bold}${pulseState ? "{cyan-fg}" : "{white-fg}"}${data}${pulseState ? "{/cyan-fg}" : "{/white-fg}"}{/bold}{/center}`);
@@ -84,7 +122,17 @@ figlet.text("ADB NODE", { font: "Doom" }, (err, data) => {
     }, 1500);
   }
 });
-const descriptionBox = blessed.box({ /* unchanged */ });
+
+const descriptionBox = blessed.box({
+  top: "15%",
+  left: 0,
+  width: "100%",
+  height: "5%",
+  content: "{center}{bold}{cyan-fg}«  PRIOR TESTNET 🌐  »{/cyan-fg}{/bold}{/center}",
+  tags: true,
+  style: { fg: "cyan", bg: "black" }
+});
+
 const logsBox = blessed.log({
   label: "{cyan-fg}◄ LOGS 📜 ►{/cyan-fg}",
   top: "20%",
@@ -100,12 +148,13 @@ const logsBox = blessed.log({
   scrollbar: { ch: "│", style: { bg: "cyan" } },
   style: { border: { fg: "cyan" }, fg: "white", bg: "black" }
 });
+
 const walletBox = blessed.box({
   label: "{cyan-fg}◄ WALLETS 💰 ►{/cyan-fg}",
   top: "20%",
   left: 0,
   width: "40%",
-  height: "25%",
+  height: "40%", // Increased height since codeStreamBox is removed
   border: { type: "line" },
   tags: true,
   style: { border: { fg: "cyan" }, fg: "white", bg: "black" },
@@ -113,21 +162,66 @@ const walletBox = blessed.box({
   scrollable: true,
   scrollbar: { ch: "│", style: { bg: "cyan" } }
 });
-const codeStreamBox = blessed.box({ /* unchanged */ });
-const mainMenu = blessed.list({ /* unchanged */ });
-const priorSubMenu = blessed.list({ /* unchanged */ });
-const promptBox = blessed.prompt({ /* unchanged */ });
+
+const mainMenu = blessed.list({
+  label: "{cyan-fg}◄ CONTROLS ⚙️ ►{/cyan-fg}",
+  top: "60%", // Adjusted position
+  left: 0,
+  width: "40%",
+  height: "40%", // Increased height
+  keys: true,
+  mouse: true,
+  border: { type: "line" },
+  style: { fg: "cyan", bg: "black", border: { fg: "cyan" }, selected: { bg: "cyan", fg: "black" } },
+  items: getMainMenuItems()
+});
+
+const priorSubMenu = blessed.list({
+  label: "{cyan-fg}◄ PRIOR 🚀 ►{/cyan-fg}",
+  top: "60%",
+  left: 0,
+  width: "40%",
+  height: "40%",
+  keys: true,
+  mouse: true,
+  border: { type: "line" },
+  style: { fg: "cyan", bg: "black", border: { fg: "cyan" }, selected: { bg: "cyan", fg: "black" } },
+  items: getPriorMenuItems()
+});
+priorSubMenu.hide();
+
+const promptBox = blessed.prompt({
+  parent: screen,
+  border: "line",
+  height: 5,
+  width: "50%",
+  top: "center",
+  left: "center",
+  label: "{cyan-fg}◄ SWAP ⚡ ►{/cyan-fg}",
+  tags: true,
+  keys: true,
+  mouse: true,
+  style: { fg: "cyan", bg: "black", border: { fg: "cyan" } }
+});
 
 screen.append(headerBox);
 screen.append(descriptionBox);
 screen.append(logsBox);
 screen.append(walletBox);
-screen.append(codeStreamBox);
 screen.append(mainMenu);
 screen.append(priorSubMenu);
 
-function getMainMenuItems() { /* unchanged */ }
-function getPriorMenuItems() { /* unchanged */ }
+function getMainMenuItems() {
+  let items = ["Prior", "Faucet", "Clear Logs", "Sync", "Exit"];
+  if (priorSwapRunning) items.unshift("Stop All");
+  return items;
+}
+
+function getPriorMenuItems() {
+  let items = ["Auto Swap", "Clear Logs", "Back", "Sync"];
+  if (priorSwapRunning) items.splice(1, 0, "Stop Swap");
+  return items;
+}
 
 function updateWalletsDisplay() {
   let content = "";
@@ -148,32 +242,6 @@ function updateWalletsDisplay() {
   walletBox.scrollTo(walletsInfo.length * 5);
   safeRender();
 }
-
-// Fixed fakeCodeSnippets with actual values
-const fakeCodeSnippets = [
-  "0x4a2b... exec_swap(0.01);",
-  "function hack_prior() { return true; }",
-  "while(1) { ping_node(); }",
-  "0xdeadbeef -> 0x1337",
-  "crypto.hash('sha256', data);",
-  "await tx.confirm(6);",
-  "sys.inject('payload');",
-  "rand(0, 255) >> 8;",
-  "eth_call(0x1234, '0x');",
-  "deploy_contract(0xabc);"
-];
-
-function updateCodeStream() {
-  const lines = Math.floor(codeStreamBox.height - 2);
-  let content = "";
-  for (let i = 0; i < lines; i++) {
-    const randomSnippet = fakeCodeSnippets[Math.floor(Math.random() * fakeCodeSnippets.length)];
-    content += `{green-fg}${randomSnippet}{/green-fg}\n`;
-  }
-  codeStreamBox.setContent(content.trim());
-  safeRender();
-}
-setInterval(updateCodeStream, 1000);
 
 async function updateWalletsData() {
   try {
@@ -231,7 +299,12 @@ async function updateWalletsData() {
   }
 }
 
-function stopAllTransactions() { /* unchanged */ }
+function stopAllTransactions() {
+  if (priorSwapRunning) {
+    priorSwapCancelled = true;
+    addLog("All stopped ⛔.", "system");
+  }
+}
 
 async function autoClaimFaucet() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -373,11 +446,9 @@ function adjustLayout() {
   logsBox.top = headerBox.height + descriptionBox.height;
   logsBox.height = screenHeight - (headerBox.height + descriptionBox.height);
   walletBox.top = headerBox.height + descriptionBox.height;
-  walletBox.height = Math.floor(screenHeight * 0.25);
-  codeStreamBox.top = headerBox.height + descriptionBox.height + walletBox.height;
-  codeStreamBox.height = Math.floor(screenHeight * 0.30);
-  mainMenu.top = headerBox.height + descriptionBox.height + walletBox.height + codeStreamBox.height;
-  mainMenu.height = screenHeight - (headerBox.height + descriptionBox.height + walletBox.height + codeStreamBox.height);
+  walletBox.height = Math.floor(screenHeight * 0.40); // Adjusted height
+  mainMenu.top = headerBox.height + descriptionBox.height + walletBox.height;
+  mainMenu.height = screenHeight - (headerBox.height + descriptionBox.height + walletBox.height);
   priorSubMenu.top = mainMenu.top;
   priorSubMenu.height = mainMenu.height;
   safeRender();
