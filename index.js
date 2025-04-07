@@ -18,7 +18,14 @@ let priorSwapRunning = false;
 let priorSwapCancelled = false;
 let globalWallets = [];
 
-const ERC20_ABI = [/* unchanged */];
+const ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function transferFrom(address from, address to, uint256 amount) returns (bool)"
+];
+
 const routerABI = [/* unchanged */];
 const FAUCET_ABI = [/* unchanged */];
 
@@ -40,7 +47,7 @@ function getRandomNumber(min, max) { return Math.random() * (max - min) + min; }
 function getShortHash(hash) { return hash.slice(0, 6) + "..." + hash.slice(-4); }
 function updateLogs() {
   logsBox.setContent(transactionLogs.join("\n"));
-  logsBox.scrollTo(transactionLogs.length); // Changed from setScrollPerc to scrollTo
+  logsBox.scrollTo(transactionLogs.length);
   screen.render();
 }
 function clearTransactionLogs() {
@@ -78,8 +85,6 @@ figlet.text("ADB NODE", { font: "Doom" }, (err, data) => {
   }
 });
 const descriptionBox = blessed.box({ /* unchanged */ });
-
-// Changed logsBox from blessed.box to blessed.log
 const logsBox = blessed.log({
   label: "{cyan-fg}◄ LOGS 📜 ►{/cyan-fg}",
   top: "20%",
@@ -95,7 +100,6 @@ const logsBox = blessed.log({
   scrollbar: { ch: "│", style: { bg: "cyan" } },
   style: { border: { fg: "cyan" }, fg: "white", bg: "black" }
 });
-
 const walletBox = blessed.box({
   label: "{cyan-fg}◄ WALLETS 💰 ►{/cyan-fg}",
   top: "20%",
@@ -141,11 +145,24 @@ function updateWalletsDisplay() {
                `-------------------------\n`;
   });
   walletBox.setContent(content.trim());
-  walletBox.scrollTo(walletsInfo.length * 5); // Adjusted for walletBox scrolling
+  walletBox.scrollTo(walletsInfo.length * 5);
   safeRender();
 }
 
-const fakeCodeSnippets = [/* unchanged */];
+// Fixed fakeCodeSnippets with actual values
+const fakeCodeSnippets = [
+  "0x4a2b... exec_swap(0.01);",
+  "function hack_prior() { return true; }",
+  "while(1) { ping_node(); }",
+  "0xdeadbeef -> 0x1337",
+  "crypto.hash('sha256', data);",
+  "await tx.confirm(6);",
+  "sys.inject('payload');",
+  "rand(0, 255) >> 8;",
+  "eth_call(0x1234, '0x');",
+  "deploy_contract(0xabc);"
+];
+
 function updateCodeStream() {
   const lines = Math.floor(codeStreamBox.height - 2);
   let content = "";
@@ -174,23 +191,43 @@ async function updateWalletsData() {
 
     for (let i = 0; i < globalWallets.length; i++) {
       const wallet = globalWallets[i];
-      const [ethBalance, balancePrior, balanceUSDC, balanceUSDT] = await Promise.all([
-        provider.getBalance(wallet.address),
-        new ethers.Contract(PRIOR_ADDRESS, ERC20_ABI, provider).balanceOf(wallet.address),
-        new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider).balanceOf(wallet.address),
-        new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider).balanceOf(wallet.address)
-      ]);
+      const shortAddr = getShortAddress(wallet.address);
+      try {
+        const ethBalance = await provider.getBalance(wallet.address);
+        walletsInfo[i].balanceETH = ethers.formatEther(ethBalance);
+      } catch (error) {
+        addLog(`W${i + 1} [${shortAddr}] ETH balance fetch failed: ${error.message}`, "error");
+      }
 
-      walletsInfo[i].balanceETH = ethers.formatEther(ethBalance);
-      walletsInfo[i].balancePrior = ethers.formatEther(balancePrior);
-      walletsInfo[i].balanceUSDC = ethers.formatUnits(balanceUSDC, 6);
-      walletsInfo[i].balanceUSDT = ethers.formatUnits(balanceUSDT, 6);
+      try {
+        const priorContract = new ethers.Contract(PRIOR_ADDRESS, ERC20_ABI, provider);
+        const balancePrior = await priorContract.balanceOf(wallet.address);
+        walletsInfo[i].balancePrior = ethers.formatEther(balancePrior);
+      } catch (error) {
+        addLog(`W${i + 1} [${shortAddr}] PRIOR balance fetch failed: ${error.message}`, "error");
+      }
+
+      try {
+        const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider);
+        const balanceUSDC = await usdcContract.balanceOf(wallet.address);
+        walletsInfo[i].balanceUSDC = ethers.formatUnits(balanceUSDC, 6);
+      } catch (error) {
+        addLog(`W${i + 1} [${shortAddr}] USDC balance fetch failed: ${error.message}`, "error");
+      }
+
+      try {
+        const usdtContract = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider);
+        const balanceUSDT = await usdtContract.balanceOf(wallet.address);
+        walletsInfo[i].balanceUSDT = ethers.formatUnits(balanceUSDT, 6);
+      } catch (error) {
+        addLog(`W${i + 1} [${shortAddr}] USDT balance fetch failed: ${error.message}`, "error");
+      }
     }
 
     updateWalletsDisplay();
     addLog("All wallets synced 🔄.", "system");
   } catch (error) {
-    addLog("Sync failed: " + error.message, "error");
+    addLog(`Sync failed: ${error.message}`, "error");
   }
 }
 
