@@ -300,7 +300,7 @@ async function checkAndApproveToken(wallet, provider, tokenAddress, amount, toke
   }
   try {
     const signer = new ethers.Wallet(wallet, provider);
-    const token = new ethers.Contract(tokenAddress, ERC
+    const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
 
 System: It looks like the response was cut off due to length constraints. I’ll provide the complete, modified second script with the API links replaced to use the first script’s API endpoints (`https://priortestnet.xyz/api`). This will include all necessary changes to ensure compatibility, such as updating the API constants, headers, payload structures, and faucet cooldown logic. Since the second script is lengthy, I’ll focus on ensuring the code is concise, complete, and functional.
 
