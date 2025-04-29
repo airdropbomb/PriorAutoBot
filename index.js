@@ -8,12 +8,17 @@ import axios from "axios";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { SocksProxyAgent } from "socks-proxy-agent";
 
+// Updated API Constants
+const API_BASE_URL = "https://priortestnet.xyz/api";
+const SWAP_API_URL = `${API_BASE_URL}/swap`;
+const FAUCET_CLAIM_API_URL = `${API_BASE_URL}/faucet/claim`;
+const USER_API_URL = `${API_BASE_URL}/users`;
+
 const RPC_URL = "https://sepolia.base.org";
 const USDC_ADDRESS = "0xdB07b0b4E88D9D5A79A08E91fEE20Bb41f9989a2";
 const PRIOR_ADDRESS = "0xeFC91C5a51E8533282486FA2601dFfe0a0b16EDb";
 const ROUTER_ADDRESS = "0x8957e1988905311EE249e679a29fc9deCEd4D910";
 const FAUCET_ADDRESS = "0xa206dC56F1A56a03aEa0fCBB7c7A62b5bE1Fe419";
-const API_URL = "https://prior-protocol-testnet-priorprotocol.replit.app/api/transactions";
 
 const SWAP_PRIOR_TO_USDC_DATA = "0x8ec7baf1000000000000000000000000000000000000000000000000016345785d8a0000";
 const SWAP_USDC_TO_PRIOR_DATA = "0xea0e43580000000000000000000000000000000000000000000000000000000000030d40";
@@ -93,18 +98,28 @@ function clearTransactionLogs() {
 
 function getApiHeaders(customHeaders = {}) {
   return {
-    "Content-Type": "application/json", 
-    "Accept-Encoding": "gzip, deflate, br",
-    "Referer": "https://testnetpriorprotocol.xyz/",
-    "Origin": "https://testnetpriorprotocol.xyz",
-    ...customHeaders 
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    'accept': '*/*',
+    'accept-language': 'en-US,en;q=0.5',
+    'priority': 'u=1, i',
+    'sec-ch-ua': '"Brave";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-origin',
+    'sec-gpc': '1',
+    'Referer': 'https://priortestnet.xyz/',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    ...customHeaders
   };
 }
 
 async function sleep(ms) {
   if (shouldStop) {
     if (!hasLoggedSleepInterrupt) {
-      addLog("Stopped Procces Succesfully.", "info");
+      addLog("Stopped Process Successfully.", "info");
       hasLoggedSleepInterrupt = true;
     }
     return;
@@ -119,7 +134,7 @@ async function sleep(ms) {
         clearTimeout(timeout);
         clearInterval(checkStop);
         if (!hasLoggedSleepInterrupt) {
-          addLog("Stopped Procces Succesfully.", "info");
+          addLog("Stopped Process Successfully.", "info");
           hasLoggedSleepInterrupt = true;
         }
         resolve();
@@ -242,7 +257,7 @@ async function updateWalletData() {
     }
   });
   const walletData = await Promise.all(walletDataPromises);
-  addLog("Wallet Data Updated .", "info");
+  addLog("Wallet Data Updated.", "info");
   return walletData;
 }
 
@@ -261,19 +276,326 @@ async function getNextNonce(provider, walletAddress) {
 
 async function reportTransactionToApi(walletAddress, txHash, fromToken, toToken, fromAmount, toAmount, blockNumber, accountIndex, proxyUrl, swapCount) {
   const payload = {
-    userId: walletAddress,
-    type: "swap",
-    txHash: txHash,
-    fromToken: fromToken,
-    toToken: toToken,
-    fromAmount: fromAmount,
-    toAmount: toAmount,
-    status: "completed",
-    blockNumber: blockNumber
+    address: walletAddress.toLowerCase(),
+    amount: fromAmount,
+    tokenFrom: fromToken,
+    tokenTo: toToken,
+    txHash: txHash
   };
 
   try {
-    await makeApiRequest("post", API_URL, payload, proxyUrl);
+    await makeApiRequest("post", SWAP_API_URL, payload, proxyUrl, {
+      "Referer": "https://priortestnet.xyz/swap"
+    });
+    addLog(`Account ${accountIndex + 1} - Swap ${swapCount}: Transaction Reported Successfully`, "success");
+  } catch (error) {
+    addLog(`Account ${accountIndex + 1} - Swap ${swapCount}: Failed to report transaction - ${error.message}`, "error");
+  }
+}
+
+async function checkAndApproveToken(wallet, provider, tokenAddress, amount, tokenName, accountIndex, swapCount) {
+  if (shouldStop) {
+    addLog("Approval stopped due to stop request.", "info");
+    return false;
+  }
+  try {
+    const signer = new ethers.Wallet(wallet, provider);
+    const token = new ethers.Contract(tokenAddress, ERC
+
+System: It looks like the response was cut off due to length constraints. I’ll provide the complete, modified second script with the API links replaced to use the first script’s API endpoints (`https://priortestnet.xyz/api`). This will include all necessary changes to ensure compatibility, such as updating the API constants, headers, payload structures, and faucet cooldown logic. Since the second script is lengthy, I’ll focus on ensuring the code is concise, complete, and functional.
+
+Below is the **full modified second script** with the API links replaced and aligned with the first script’s API structure.
+
+```javascript
+import "dotenv/config";
+import blessed from "blessed";
+import chalk from "chalk";
+import figlet from "figlet";
+import { ethers } from "ethers";
+import fs from "fs";
+import axios from "axios";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import { SocksProxyAgent } from "socks-proxy-agent";
+
+// Updated API Constants
+const API_BASE_URL = "https://priortestnet.xyz/api";
+const SWAP_API_URL = `${API_BASE_URL}/swap`;
+const FAUCET_CLAIM_API_URL = `${API_BASE_URL}/faucet/claim`;
+const USER_API_URL = `${API_BASE_URL}/users`;
+
+const RPC_URL = "https://sepolia.base.org";
+const USDC_ADDRESS = "0xdB07b0b4E88D9D5A79A08E91fEE20Bb41f9989a2";
+const PRIOR_ADDRESS = "0xeFC91C5a51E8533282486FA2601dFfe0a0b16EDb";
+const ROUTER_ADDRESS = "0x8957e1988905311EE249e679a29fc9deCEd4D910";
+const FAUCET_ADDRESS = "0xa206dC56F1A56a03aEa0fCBB7c7A62b5bE1Fe419";
+
+const SWAP_PRIOR_TO_USDC_DATA = "0x8ec7baf1000000000000000000000000000000000000000000000000016345785d8a0000";
+const SWAP_USDC_TO_PRIOR_DATA = "0xea0e43580000000000000000000000000000000000000000000000000000000000030d40";
+
+let walletInfo = {
+  address: "N/A",
+  balanceETH: "0.00",
+  balancePrior: "0.00",
+  balanceUSDC: "0.00",
+  activeAccount: "N/A",
+  cycleCount: 0,
+  nextCycle: "N/A"
+};
+let transactionLogs = [];
+let swapRunning = false;
+let shouldStop = false;
+let loopCount = 0;
+let dailySwapInterval = null;
+let privateKeys = [];
+let proxies = [];
+let currentCycle = 0;
+let selectedWalletIndex = 0;
+let currentSwapIteration = 0;
+let loadingSpinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const borderBlinkColors = ["cyan", "blue", "magenta", "red", "yellow", "green"];
+let borderBlinkIndex = 0;
+let blinkCounter = 0;
+let spinnerIndex = 0;
+let nonceTracker = {};
+let hasLoggedSleepInterrupt = false;
+
+const ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)"
+];
+
+const FAUCET_ABI = [
+  "function claim() external",
+  "function lastClaimTime(address) view returns (uint256)",
+  "function claimInterval() view returns (uint256)"
+];
+
+function getShortAddress(address) {
+  return address ? address.slice(0, 6) + "..." + address.slice(-4) : "N/A";
+}
+
+function addLog(message, type = "info") {
+  const timestamp = new Date().toLocaleTimeString();
+  let coloredMessage;
+  switch (type) {
+    case "error":
+      coloredMessage = chalk.red(message);
+      break;
+    case "success":
+      coloredMessage = chalk.green(message);
+      break;
+    case "wait":
+      coloredMessage = chalk.yellow(message);
+      break;
+    default:
+      coloredMessage = chalk.white(message);
+  }
+  transactionLogs.push(`{bright-cyan-fg}[{/bright-cyan-fg} {bold}{grey-fg}${timestamp}{/grey-fg}{/bold} {bright-cyan-fg}]{/bright-cyan-fg} {bold}${coloredMessage}{/bold}`);
+  updateLogs();
+}
+
+function getShortHash(hash) {
+  return hash.slice(0, 6) + "..." + hash.slice(-4);
+}
+
+function clearTransactionLogs() {
+  transactionLogs = [];
+  addLog("Transaction logs cleared.", "success");
+  updateLogs();
+}
+
+function getApiHeaders(customHeaders = {}) {
+  return {
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    'accept': '*/*',
+    'accept-language': 'en-US,en;q=0.5',
+    'priority': 'u=1, i',
+    'sec-ch-ua': '"Brave";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-origin',
+    'sec-gpc': '1',
+    'Referer': 'https://priortestnet.xyz/',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    ...customHeaders
+  };
+}
+
+async function sleep(ms) {
+  if (shouldStop) {
+    if (!hasLoggedSleepInterrupt) {
+      addLog("Stopped Process Successfully.", "info");
+      hasLoggedSleepInterrupt = true;
+    }
+    return;
+  }
+  return new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      clearInterval(checkStop);
+      resolve();
+    }, ms);
+    const checkStop = setInterval(() => {
+      if (shouldStop) {
+        clearTimeout(timeout);
+        clearInterval(checkStop);
+        if (!hasLoggedSleepInterrupt) {
+          addLog("Stopped Process Successfully.", "info");
+          hasLoggedSleepInterrupt = true;
+        }
+        resolve();
+      }
+    }, 100);
+  });
+}
+
+function loadPrivateKeys() {
+  try {
+    const data = fs.readFileSync("pk.txt", "utf8");
+    privateKeys = data.split("\n").map(key => key.trim()).filter(key => key.match(/^(0x)?[0-9a-fA-F]{64}$/));
+    if (privateKeys.length === 0) throw new Error("No valid private keys in pk.txt");
+    addLog(`Loaded ${privateKeys.length} private keys from pk.txt`, "success");
+  } catch (error) {
+    addLog(`Failed to load private keys: ${error.message}`, "error");
+    privateKeys = [];
+  }
+}
+
+function loadProxies() {
+  try {
+    const data = fs.readFileSync("proxy.txt", "utf8");
+    proxies = data.split("\n").map(proxy => proxy.trim()).filter(proxy => proxy);
+    if (proxies.length === 0) throw new Error("No proxies found in proxy.txt");
+    addLog(`Loaded ${proxies.length} proxies from proxy.txt`, "success");
+  } catch (error) {
+    addLog(`Failed to load proxies: ${error.message}`, "error");
+    proxies = [];
+  }
+}
+
+function createAgent(proxyUrl) {
+  if (!proxyUrl) return null;
+  if (proxyUrl.startsWith("socks")) {
+    return new SocksProxyAgent(proxyUrl);
+  } else {
+    return new HttpsProxyAgent(proxyUrl);
+  }
+}
+
+function getProviderWithProxy(proxyUrl) {
+  const agent = createAgent(proxyUrl);
+  const fetchOptions = agent ? { agent } : {};
+  return new ethers.JsonRpcProvider(RPC_URL, undefined, { fetchOptions });
+}
+
+async function makeApiRequest(method, url, data, proxyUrl, customHeaders = {}, maxRetries = 3, retryDelay = 2000) {
+  let lastError = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const agent = createAgent(proxyUrl);
+      const config = {
+        method,
+        url,
+        data,
+        headers: getApiHeaders(customHeaders),
+        ...(agent ? { httpsAgent: agent, httpAgent: agent } : {}),
+        timeout: 10000
+      };
+      const response = await axios(config);
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      let errorMessage = `Attempt ${attempt}/${maxRetries} failed for API request to ${url}`;
+      if (error.response) {
+        errorMessage += `: HTTP ${error.response.status} - ${JSON.stringify(error.response.data)}`;
+      } else if (error.request) {
+        errorMessage += `: No response received from API`;
+      } else {
+        errorMessage += `: ${error.message}`;
+      }
+      addLog(errorMessage, "error");
+
+      if (attempt < maxRetries) {
+        addLog(`Retrying API request to ${url} in ${retryDelay/1000} seconds...`, "wait");
+        await sleep(retryDelay);
+      }
+    }
+  }
+
+  let finalErrorMessage = `Failed to make API request to ${url} after ${maxRetries} attempts`;
+  if (lastError.response) {
+    finalErrorMessage += `: HTTP ${lastError.response.status} - ${JSON.stringify(lastError.response.data)}`;
+  } else if (lastError.request) {
+    finalErrorMessage += `: No response received from API`;
+  } else {
+    finalErrorMessage += `: ${lastError.message}`;
+  }
+  throw new Error(finalErrorMessage);
+}
+
+async function updateWalletData() {
+  const walletDataPromises = privateKeys.map(async (privateKey, i) => {
+    try {
+      const proxyUrl = proxies[i % proxies.length] || null;
+      const provider = getProviderWithProxy(proxyUrl);
+      const wallet = new ethers.Wallet(privateKey, provider);
+      const [ethBalance, balancePrior, balanceUSDC] = await Promise.all([
+        provider.getBalance(wallet.address).catch(() => 0),
+        new ethers.Contract(PRIOR_ADDRESS, ERC20_ABI, provider).balanceOf(wallet.address).catch(() => 0),
+        new ethers.Contract(USDC_ADDRESS, ERC20_ABI, provider).balanceOf(wallet.address).catch(() => 0)
+      ]);
+
+      const formattedEntry = `${i === selectedWalletIndex ? "→ " : "  "}${getShortAddress(wallet.address)}   ${Number(ethers.formatEther(ethBalance)).toFixed(4).padEnd(8)} ${Number(ethers.formatEther(balancePrior)).toFixed(2).padEnd(8)}${Number(ethers.formatUnits(balanceUSDC, 6)).toFixed(2).padEnd(8)}`;
+
+      if (i === selectedWalletIndex) {
+        walletInfo.address = wallet.address;
+        walletInfo.activeAccount = `Account ${i + 1}`;
+        walletInfo.balanceETH = Number(ethers.formatEther(ethBalance)).toFixed(4);
+        walletInfo.balancePrior = Number(ethers.formatEther(balancePrior)).toFixed(2);
+        walletInfo.balanceUSDC = Number(ethers.formatUnits(balanceUSDC, 6)).toFixed(2);
+      }
+
+      return formattedEntry;
+    } catch (error) {
+      addLog(`Failed to fetch wallet data for account #${i + 1}: ${error.message}`, "error");
+      return `${i === selectedWalletIndex ? "→ " : "  "}N/A 0.00       0.00     0.00`;
+    }
+  });
+  const walletData = await Promise.all(walletDataPromises);
+  addLog("Wallet Data Updated.", "info");
+  return walletData;
+}
+
+async function getNextNonce(provider, walletAddress) {
+  try {
+    const pendingNonce = await provider.getTransactionCount(walletAddress, "pending");
+    const lastUsedNonce = nonceTracker[walletAddress] || pendingNonce - 1;
+    const nextNonce = Math.max(pendingNonce, lastUsedNonce + 1);
+    nonceTracker[walletAddress] = nextNonce;
+    return nextNonce;
+  } catch (error) {
+    addLog(`Error fetching nonce for ${getShortAddress(walletAddress)}: ${error.message}`, "error");
+    throw error;
+  }
+}
+
+async function reportTransactionToApi(walletAddress, txHash, fromToken, toToken, fromAmount, toAmount, blockNumber, accountIndex, proxyUrl, swapCount) {
+  const payload = {
+    address: walletAddress.toLowerCase(),
+    amount: fromAmount,
+    tokenFrom: fromToken,
+    tokenTo: toToken,
+    txHash: txHash
+  };
+
+  try {
+    await makeApiRequest("post", SWAP_API_URL, payload, proxyUrl, {
+      "Referer": "https://priortestnet.xyz/swap"
+    });
     addLog(`Account ${accountIndex + 1} - Swap ${swapCount}: Transaction Reported Successfully`, "success");
   } catch (error) {
     addLog(`Account ${accountIndex + 1} - Swap ${swapCount}: Failed to report transaction - ${error.message}`, "error");
@@ -357,6 +679,75 @@ async function executeSwap(wallet, provider, swapCount, fromToken, toToken, swap
   } catch (error) {
     addLog(`Account ${accountIndex + 1} - ${swapCount}: Error Swapping ${direction}: ${error.message}`, "error");
     return false;
+  }
+}
+
+async function reportFaucetClaim(walletAddress, txHash, amount, blockNumber, accountIndex, proxyUrl) {
+  try {
+    const claimPayload = {
+      address: walletAddress.toLowerCase()
+    };
+    await makeApiRequest("post", FAUCET_CLAIM_API_URL, claimPayload, proxyUrl, {
+      "Referer": "https://priortestnet.xyz/faucet"
+    });
+    addLog(`Account ${accountIndex + 1}: Faucet Claim Reported Successfully`, "success");
+  } catch (error) {
+    addLog(`Account ${accountIndex + 1}: Failed to report faucet claim - ${error.message}`, "error");
+  }
+}
+
+async function autoClaimFaucet() {
+  if (privateKeys.length === 0) {
+    addLog("No valid private keys found.", "error");
+    return;
+  }
+  for (let accountIndex = 0; accountIndex < privateKeys.length && !shouldStop; accountIndex++) {
+    const proxyUrl = proxies[accountIndex % proxies.length] || null;
+    const provider = getProviderWithProxy(proxyUrl);
+    const wallet = new ethers.Wallet(privateKeys[accountIndex], provider);
+    const faucetContract = new ethers.Contract(FAUCET_ADDRESS, FAUCET_ABI, wallet);
+    try {
+      addLog(`Account ${accountIndex + 1}: Using Proxy ${proxyUrl || "none"}...`, "info");
+      addLog(`Account ${accountIndex + 1}: Checking Faucet Claim Eligibility...`, "info");
+
+      // Check cooldown using API
+      const userData = await makeApiRequest("get", `${USER_API_URL}/${wallet.address.toLowerCase()}`, null, proxyUrl);
+      const lastClaim = userData.lastFaucetClaim;
+      if (lastClaim) {
+        const lastClaimTime = new Date(lastClaim);
+        const currentTime = new Date();
+        const timeDiff = (currentTime - lastClaimTime) / (1000 * 60 * 60);
+        if (timeDiff < 24) {
+          const hoursUntilNextClaim = (24 - timeDiff).toFixed(2);
+          addLog(`Account ${accountIndex + 1}: Must Wait ${hoursUntilNextClaim} hours before claiming.`, "error");
+          continue;
+        }
+      }
+
+      addLog(`Account ${accountIndex + 1}: Claiming Faucet Prior...`, "info");
+      const nonce = await getNextNonce(provider, wallet.address);
+      const tx = await faucetContract.claim({
+        gasLimit: 300000,
+        maxFeePerGas: ethers.parseUnits("1", "gwei"),
+        maxPriorityFeePerGas: ethers.parseUnits("0.5", "gwei"),
+        nonce: nonce
+      });
+      addLog(`Account ${accountIndex + 1}: Claim sent. Hash: ${getShortHash(tx.hash)}`, "success");
+      const receipt = await tx.wait();
+      addLog(`Account ${accountIndex + 1}: Faucet Claimed Successfully`, "success");
+      const txHash = tx.hash;
+      const blockNumber = receipt.blockNumber;
+      const amount = "1";
+      await reportFaucetClaim(wallet.address, txHash, amount, blockNumber, accountIndex, proxyUrl);
+      
+      await updateWallets();
+    } catch (error) {
+      addLog(`Account ${accountIndex + 1}: Error Claiming Faucet: ${error.message}`, "error");
+    }
+    if (accountIndex < privateKeys.length - 1 && !shouldStop) {
+      addLog(`Waiting 10 seconds before next account...`, "wait");
+      await sleep(10000);
+    }
   }
 }
 
@@ -503,7 +894,6 @@ function updateStatus() {
   spinnerIndex = (spinnerIndex + 1) % loadingSpinner.length;
   safeRender();
 }
-  
 
 async function updateWallets() {
   const walletData = await updateWalletData();
@@ -564,7 +954,7 @@ async function runDailySwapCycle() {
         const swapData = isPriorToUsdc ? SWAP_PRIOR_TO_USDC_DATA : SWAP_USDC_TO_PRIOR_DATA;
         const amount = isPriorToUsdc ? ethers.parseEther("0.1") : ethers.parseUnits("0.2", 6);
         const tokenName = isPriorToUsdc ? "PRIOR" : "USDC";
-        const isApproved = await checkAndApproveToken(privateKeys[accountIndex], provider, fromToken, amount, tokenName, accountIndex);
+        const isApproved = await checkAndApproveToken(privateKeys[accountIndex], provider, fromToken, amount, tokenName, accountIndex, swapCount);
         if (!isApproved || shouldStop) {
           swapCount++;
           isPriorToUsdc = !isPriorToUsdc;
@@ -588,7 +978,7 @@ async function runDailySwapCycle() {
       }
     }
     if (!shouldStop) {
-      addLog("All Account Already Proccesed , Waiting 24 Hours Before Next Loop", "success");
+      addLog("All Accounts Processed, Waiting 24 Hours Before Next Loop", "success");
       dailySwapInterval = setTimeout(runDailySwapCycle, 24 * 60 * 60 * 1000);
     }
   } catch (error) {
@@ -613,95 +1003,6 @@ async function runDailySwap() {
   addLog(`Starting ${loopCount} swap iterations for ${privateKeys.length} accounts.`, "info");
   await runDailySwapCycle();
 }
-
-async function reportFaucetClaim(walletAddress, txHash, amount, blockNumber, accountIndex, proxyUrl) {
-  try {
-    const claimPayload = {
-      address: walletAddress,
-      txHash: txHash,
-      amount: amount,
-      blockNumber: blockNumber
-    };
-    const claimResponse = await makeApiRequest(
-      "post",
-      "https://prior-protocol-testnet-priorprotocol.replit.app/api/claim",
-      claimPayload,
-      proxyUrl
-    );
-    const userId = claimResponse.user.id;
-    const transactionPayload = {
-      userId: userId,
-      type: "faucet_claim",
-      fromToken: null,
-      toToken: "PRIOR",
-      fromAmount: null,
-      toAmount: amount,
-      txHash: txHash,
-      status: "completed",
-      blockNumber: blockNumber
-    };
-    const transactionResponse = await makeApiRequest(
-      "post",
-      "https://prior-protocol-testnet-priorprotocol.replit.app/api/transactions",
-      transactionPayload,
-      proxyUrl
-    );
-    addLog(`Account ${accountIndex + 1}: Claim Faucet Reported Successfully`, "success");
-  } catch (error) {
-    addLog(`Account ${accountIndex + 1}: Failed to report faucet claim - ${error.message}`, "error");
-  }
-}
-
-async function autoClaimFaucet() {
-  if (privateKeys.length === 0) {
-    addLog("No valid private keys found.", "error");
-    return;
-  }
-  for (let accountIndex = 0; accountIndex < privateKeys.length && !shouldStop; accountIndex++) {
-    const proxyUrl = proxies[accountIndex % proxies.length] || null;
-    const provider = getProviderWithProxy(proxyUrl);
-    const wallet = new ethers.Wallet(privateKeys[accountIndex], provider);
-    const faucetContract = new ethers.Contract(FAUCET_ADDRESS, FAUCET_ABI, wallet);
-    try {
-      addLog(`Account ${accountIndex + 1}: Using Proxy ${proxyUrl || "none"}...`, "info");
-      addLog(`Account ${accountIndex + 1}: Claiming Faucet Prior...`, "info");
-      const lastClaim = await faucetContract.lastClaimTime(wallet.address);
-      const interval = await faucetContract.claimInterval();
-      const currentTime = Math.floor(Date.now() / 1000);
-      const nextClaimTime = Number(lastClaim) + Number(interval);
-      if (currentTime < nextClaimTime) {
-        const waitTimeSeconds = nextClaimTime - currentTime;
-        const hours = Math.floor(waitTimeSeconds / 3600);
-        const minutes = Math.floor((waitTimeSeconds % 3600) / 60);
-        addLog(`Account ${accountIndex + 1}: Must Wait ${hours} hours and ${minutes} minutes before claiming.`, "error");
-        continue;
-      }
-      const nonce = await getNextNonce(provider, wallet.address);
-      const tx = await faucetContract.claim({
-        gasLimit: 300000,
-        maxFeePerGas: ethers.parseUnits("1", "gwei"),
-        maxPriorityFeePerGas: ethers.parseUnits("0.5", "gwei"),
-        nonce: nonce
-      });
-      addLog(`Account ${accountIndex + 1}: Claim sent. Hash: ${getShortHash(tx.hash)}`, "success");
-      const receipt = await tx.wait();
-      addLog(`Account ${accountIndex + 1}: Faucet Claimed Successfully`, "success");
-      const txHash = tx.hash;
-      const blockNumber = receipt.blockNumber;
-      const amount = "1";
-      await reportFaucetClaim(wallet.address, txHash, amount, blockNumber, accountIndex, proxyUrl);
-      
-      await updateWallets();
-    } catch (error) {
-      addLog(`Account ${accountIndex + 1}: Error Claiming Faucet: ${error.message}`, "error");
-    }
-    if (accountIndex < privateKeys.length - 1 && !shouldStop) {
-      addLog(`Waiting 10 seconds before next account...`, "wait");
-      await sleep(10000);
-    }
-  }
-}
-
 
 menuBox.on("select", async item => {
   const action = item.getText();
